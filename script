@@ -1,0 +1,58 @@
+#Composition forecasting
+
+
+# Data ################################################################
+
+### Load raw dataset
+library(openxlsx)
+display <- read.xlsx("~/Display.xlsx")
+display$MONTH <- as.Date(display$MONTH, origin = "1899-12-30")
+
+### Remove non significant levels
+display <- display[display$SITE %in% c('AFISHA', 'BABY', 'BABYBLOG', 'GDN', 'GPMD', 'IMHO', 'IRECOMMEND', 
+                                       'MAILDETI', 'MAILHEALTH', 'MAILHITECH', 'MAILLADY', 'MAILMAIN', 
+                                       'MAILMP', 'MAILPOST', 'MAILSPORTS', 'MATCHTV', 'OK', 'OK_PROMOPOST', 
+                                       'RAMBLER', 'SPORTBOX', 'SPORTEXPRESS', 'STS', 'THEVILLAGE', 
+                                       'TNTONLINE', 'VK', 'YOUTUBE'), ]
+### Sample size restrictions
+display <- display[display$UNWEIGHTED_REACH >= 40, ]
+
+### Factors
+display$Sex <- as.factor(display$Sex)
+display$Income <- as.factor(display$Income)
+
+### Make 2 samples by site content type
+media <- display[!display$SITE %in% c("GPMD", "IMHO", "STS"), ]
+video <- display[display$SITE %in% c("GPMD", "IMHO", "STS"), ]
+
+### Factor SITE
+media$SITE <- as.factor(media$SITE)
+video$SITE <- as.factor(video$SITE)
+
+# Data ################################################################
+
+
+# Random Forest #######################################################
+
+library(randomForest)
+
+### media (train sample)
+model_rf_media <- randomForest(Composition ~ SITE+IMPRESSIONS+Age_min+Diff+Sex+Income+UNWEIGHTED_REACH, ntree=300, keep.inbag = TRUE,
+                               importance=TRUE, proximity=TRUE, data = media)
+### test.media (forecast sample) - данные для прогноза
+### таблица с заданными SITE IMPRESSIONS Age_min Diff Sex Income UNWEIGHTED_REACH
+test.media$ForecastRF <- predict(model_rf_media, test.media)
+
+### video (train sample)
+model_rf_video <- randomForest(Composition ~ SITE+IMPRESSIONS+Age_min+Diff+Sex+Income+UNWEIGHTED_REACH, ntree=300, keep.inbag = TRUE,  
+                               importance=TRUE, proximity=TRUE, data = video)
+### test.media (forecast sample) - данные для прогноза
+### таблица с заданными SITE IMPRESSIONS Age_min Diff Sex Income UNWEIGHTED_REACH
+test.video$ForecastRF <- predict(model_rf_video, test.video)
+
+# Random Forest #######################################################
+
+media$ForecastRF <- predict(model_rf_media, media)
+plot(media$Composition, media$ForecastRF, pch=20, lwd=8, col = "blue", ylim=c(0,1), xlim=c(0,1), main = "Media Random Forest")
+text(media$Composition, media$ForecastRF, media$SITE, cex=0.6, pos=4, col="black")
+abline(c(0,0), c(1,1))
